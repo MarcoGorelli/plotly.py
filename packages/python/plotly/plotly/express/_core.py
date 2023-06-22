@@ -152,7 +152,9 @@ def invert_label(args, column):
 
 
 def _is_continuous(df, col_name):
-    return df[col_name].dtype.kind in "ifc"
+    # return df.get_column_by_name(col_name).dtype.kind in "ifc"
+    # todo: do this properly
+    return any(i in str(df.get_column_by_name(col_name).dtype).lower() for i in ('int64', 'float64'))
 
 
 def get_decorated_label(args, column, role):
@@ -494,7 +496,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                 else:
                     trace_patch[attr_name] = trace_data[attr_value]
             else:
-                trace_patch[attr_name] = trace_data[attr_value]
+                trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
                 mapping_labels[attr_label] = "%%{%s}" % attr_name
         elif (trace_spec.constructor == go.Histogram and attr_name in ["x", "y"]) or (
             trace_spec.constructor in [go.Histogram2d, go.Histogram2dContour]
@@ -812,7 +814,7 @@ def make_trace_spec(args, constructor, attrs, trace_patch):
             args["render_mode"] == "webgl"
             or (
                 args["render_mode"] == "auto"
-                and len(args["data_frame"]) > 1000
+                and args["data_frame"].shape()[0] > 1000
                 and args["animation_frame"] is None
             )
         ):
@@ -1059,7 +1061,7 @@ def _isinstance_listlike(x):
 
 
 def _escape_col_name(df_input, col_name, extra):
-    while df_input is not None and (col_name in df_input.columns or col_name in extra):
+    while df_input is not None and (col_name in df_input.get_column_names() or col_name in extra):
         col_name = "_" + col_name
     return col_name
 
@@ -1086,7 +1088,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
     df_input = args["data_frame"]
     df_provided = df_input is not None
 
-    df_output = pd.DataFrame()
+    df_output = None
     constants = dict()
     ranges = list()
     wide_id_vars = set()
@@ -1099,6 +1101,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                 "No data were provided. Please provide data either with the `data_frame` or with the `dimensions` argument."
             )
         else:
+            # todo
             df_output[df_input.columns] = df_input[df_input.columns]
 
     # hover_data is a dict
@@ -1140,7 +1143,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
         # argument_list and field_list ready, iterate over them
         # Core of the loop starts here
         for i, (argument, field) in enumerate(zip(argument_list, field_list)):
-            length = len(df_output)
+            length = df_output.shape()[0] if df_output is not None else 0
             if argument is None:
                 continue
             col_name = None
@@ -1194,7 +1197,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                         "'%s' is of type str or int." % field
                     )
                 # Check validity of column name
-                elif argument not in df_input.columns:
+                elif argument not in df_input.get_column_names():
                     if wide_mode and argument in (value_name, var_name):
                         continue
                     else:
@@ -1206,7 +1209,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                         if argument == "index":
                             err_msg += "\n To use the index, pass it in directly as `df.index`."
                         raise ValueError(err_msg)
-                elif length and len(df_input[argument]) != length:
+                elif length and len(df_input.get_column_by_name(argument)) != length:
                     raise ValueError(
                         "All arguments should have the same length. "
                         "The length of column argument `df[%s]` is %d, whereas the "
@@ -1220,7 +1223,13 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                     )
                 else:
                     col_name = str(argument)
-                    df_output[col_name] = to_unindexed_series(df_input[argument])
+                    col_output = df_input.get_column_by_name(argument)
+                    namespace = df_input.__dataframe_namespace__()
+                    if df_output is None:
+                        df_output = namespace.dataframe_from_dict({col_name: col_output})
+                    else:
+                        df_output = df_output.insert(df_output.shape()[1], col_name, col_output)
+                    # df_output[col_name] = to_unindexed_series(df_input[argument])
             # ----------------- argument is likely a column / array / list.... -------
             else:
                 if df_provided and hasattr(argument, "name"):
@@ -1306,11 +1315,13 @@ def build_dataframe(args, constructor):
 
     # Cast data_frame argument to DataFrame (it could be a numpy array, dict etc.)
     df_provided = args["data_frame"] is not None
-    if df_provided and not isinstance(args["data_frame"], pd.DataFrame):
-        if hasattr(args["data_frame"], "to_pandas"):
-            args["data_frame"] = args["data_frame"].to_pandas()
-        else:
-            args["data_frame"] = pd.DataFrame(args["data_frame"])
+    # if df_provided and not isinstance(args["data_frame"], pd.DataFrame):
+    #     if hasattr(args["data_frame"], "to_pandas"):
+    #         args["data_frame"] = args["data_frame"].to_pandas()
+    #     else:
+    #         args["data_frame"] = pd.DataFrame(args["data_frame"])
+    if df_provided and hasattr(args['data_frame'], '__dataframe_standard__'):
+        args["data_frame"] = args["data_frame"].__dataframe_standard__()
     df_input = args["data_frame"]
 
     # now we handle special cases like wide-mode or x-xor-y specification
@@ -1884,7 +1895,7 @@ def infer_config(args, constructor, trace_patch, layout_patch):
         args[other_position] = None
 
     # Ignore facet rows and columns when data frame is empty so as to prevent nrows/ncols equaling 0
-    if len(args["data_frame"]) == 0:
+    if args["data_frame"].shape()[0] == 0:
         args["facet_row"] = args["facet_col"] = None
 
     # If both marginals and faceting are specified, faceting wins

@@ -119,9 +119,13 @@ def copy_to_readonly_numpy_array(v, kind=None, force_numeric=False):
             return copy_to_readonly_numpy_array(
                 np.array(v), kind=kind, force_numeric=force_numeric
             )
+        elif is_numpy_convertable(getattr(v, '_series', None)):
+            return copy_to_readonly_numpy_array(
+                np.array(v._series), kind=kind, force_numeric=force_numeric
+            )
         else:
             # v is not homogenous array
-            v_list = [to_scalar_or_list(e) for e in v]
+            v_list = [to_scalar_or_list(v.get_value(i)) for i in range(len(v))]
 
             # Lookup dtype for requested kind, if any
             dtype = kind_default_dtypes.get(first_kind, None)
@@ -178,6 +182,9 @@ def is_homogeneous_array(v):
     """
     Return whether a value is considered to be a homogeneous array
     """
+    # todo
+    if hasattr(v, '__column_namespace__'):
+        return True
     np = get_module("numpy", should_load=False)
     pd = get_module("pandas", should_load=False)
     if (
