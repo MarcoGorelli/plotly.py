@@ -10,6 +10,13 @@ import math
 import pandas as pd
 import numpy as np
 
+# Temporary: only necessary until `__dataframe_standard__` is upstreamed
+from dataframe_api_compat import pandas_standard
+from dataframe_api_compat import polars_standard
+import polars as pl
+pd.DataFrame.__dataframe_standard__ = lambda df: pandas_standard.convert_to_standard_compliant_dataframe(df)
+pl.DataFrame.__dataframe_standard__ = lambda df: polars_standard.convert_to_standard_compliant_dataframe(df)
+
 from plotly._subplots import (
     make_subplots,
     _set_trace_grid_reference,
@@ -154,7 +161,15 @@ def invert_label(args, column):
 def _is_continuous(df, col_name):
     # return df.get_column_by_name(col_name).dtype.kind in "ifc"
     # todo: do this properly
-    return any(i in str(df.get_column_by_name(col_name).dtype).lower() for i in ('int64', 'float64'))
+    namespace = df.__dataframe_namespace__()
+    return any(
+        df.get_column_by_name(col_name).dtype is dtype
+        for dtype in (
+            namespace.Float64,
+            namespace.Float32,
+            namespace.Int64,
+        )
+    )
 
 
 def get_decorated_label(args, column, role):
@@ -285,6 +300,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                 and (
                     trace_spec.constructor != go.Parcoords
                     or _is_continuous(args["data_frame"], name)
+                    or (isinstance(args['data_frame'], pd.DataFrame) and args['data_frame'][name].dtype == 'complex')
                 )
                 and (
                     trace_spec.constructor != go.Parcats
@@ -1073,6 +1089,13 @@ def to_unindexed_series(x):
     seems to mangle datetime columns. Stripping the index from existing pd.Series is
     required to get things to match up right in the new DataFrame we're building
     """
+    if hasattr(x, '__column_namespace__'):
+        return x
+    # how to convert?
+    if isinstance(x, pd.Series):
+        ser = pd.Series(x).reset_index(drop=True)
+    else:
+        ser = pandas_standard.column_from_sequence(x, dtype=None)  # how to specify the dtype here?
     return pd.Series(x).reset_index(drop=True)
 
 
