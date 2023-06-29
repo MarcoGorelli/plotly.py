@@ -1091,12 +1091,14 @@ def to_unindexed_series(x):
     """
     if hasattr(x, '__column_namespace__'):
         return x
-    # how to convert?
     if isinstance(x, pd.Series):
-        ser = pd.Series(x).reset_index(drop=True)
+        ser = pd.Series(x).reset_index(drop=True).rename('col')
+    elif isinstance(x, pl.Series):
+        ser = x.rename('col')
     else:
-        ser = pandas_standard.column_from_sequence(x, dtype=None)  # how to specify the dtype here?
-    return pd.Series(x).reset_index(drop=True)
+        ser = pd.Series(x, name='col')
+    # totally illegal for now
+    return ser.to_frame().__dataframe_standard__().get_column_by_name('col')
 
 
 def process_args_into_dataframe(args, wide_mode, var_name, value_name):
@@ -1281,7 +1283,12 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                         "length of  previously-processed arguments %s is %d"
                         % (field, len(argument), str(list(df_output.columns)), length)
                     )
-                df_output[str(col_name)] = to_unindexed_series(argument)
+                col_output = to_unindexed_series(argument)
+                namespace = col_output.__column_namespace__()
+                if df_output is None:
+                    df_output = namespace.dataframe_from_dict({col_name: col_output})
+                else:
+                    df_output = df_output.insert(df_output.shape()[1], col_name, col_output)
 
             # Finally, update argument with column name now that column exists
             assert col_name is not None, (
@@ -1988,7 +1995,9 @@ def get_groups_and_orders(args, grouper):
             single_group_name.append("")
         else:
             if col not in unique_cache:
-                unique_cache[col] = list(args["data_frame"][col].unique())
+                col_compliant = args["data_frame"].get_column_by_name(col)
+                unique_indices = col_compliant.unique_indices()
+                unique_cache[col] = list(col_compliant.get_rows(unique_indices).column)
             uniques = unique_cache[col]
             if len(uniques) == 1:
                 single_group_name.append(uniques[0])
@@ -2001,8 +2010,9 @@ def get_groups_and_orders(args, grouper):
         # we have a single group, so we can skip all group-by operations!
         groups = {tuple(single_group_name): df}
     else:
+        # oh my goodness...this is gonna be bad.
         required_grouper = [g for g in grouper if g != one_group]
-        grouped = df.groupby(required_grouper, sort=False)  # skip one_group groupers
+        grouped = df.groupby(required_grouper)  # skip one_group groupers
         group_indices = grouped.indices
         sorted_group_names = [
             g if len(required_grouper) != 1 else (g,) for g in group_indices
