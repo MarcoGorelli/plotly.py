@@ -163,11 +163,12 @@ def _is_continuous(df, col_name):
     # todo: do this properly
     namespace = df.__dataframe_namespace__()
     return any(
-        df.get_column_by_name(col_name).dtype is dtype
+        isinstance(df.get_column_by_name(col_name).dtype, dtype)
         for dtype in (
             namespace.Float64,
             namespace.Float32,
             namespace.Int64,
+            namespace.Int32,
         )
     )
 
@@ -478,7 +479,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                         colorable = "line"
                     if colorable not in trace_patch:
                         trace_patch[colorable] = dict()
-                    trace_patch[colorable]["color"] = trace_data[attr_value]
+                    trace_patch[colorable]["color"] = trace_data.get_column_by_name(attr_value)
                     trace_patch[colorable]["coloraxis"] = "coloraxis1"
                     mapping_labels[attr_label] = "%%{%s.color}" % colorable
             elif attr_name == "animation_group":
