@@ -2010,8 +2010,9 @@ def get_groups_and_orders(args, grouper):
         # we have a single group, so we can skip all group-by operations!
         groups = {tuple(single_group_name): df}
     else:
-        # oh my goodness...this is gonna be bad.
         required_grouper = [g for g in grouper if g != one_group]
+        # temporary hack!!!
+        df = df.dataframe
         grouped = df.groupby(required_grouper)  # skip one_group groupers
         group_indices = grouped.indices
         sorted_group_names = [
@@ -2033,7 +2034,7 @@ def get_groups_and_orders(args, grouper):
         full_sorted_group_names = [tuple(g) for g in full_sorted_group_names]
 
         groups = {
-            sf: grouped.get_group(s if len(s) > 1 else s[0])
+            sf: grouped.get_group(s if len(s) > 1 else s[0]).__dataframe_standard__()
             for sf, s in zip(full_sorted_group_names, sorted_group_names)
         }
     return groups, orders
