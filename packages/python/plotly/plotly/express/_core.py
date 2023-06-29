@@ -1253,7 +1253,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                     namespace = df_input.__dataframe_namespace__()
                     if df_output is None:
                         df_output = namespace.dataframe_from_dict({col_name: col_output})
-                    else:
+                    elif col_name not in df_output.get_column_names():
                         df_output = df_output.insert(df_output.shape()[1], col_name, col_output)
                     # df_output[col_name] = to_unindexed_series(df_input[argument])
             # ----------------- argument is likely a column / array / list.... -------
@@ -1288,7 +1288,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                 namespace = col_output.__column_namespace__()
                 if df_output is None:
                     df_output = namespace.dataframe_from_dict({col_name: col_output})
-                else:
+                elif col_name not in df_output.get_column_names():
                     df_output = df_output.insert(df_output.shape()[1], col_name, col_output)
 
             # Finally, update argument with column name now that column exists
