@@ -162,8 +162,13 @@ def _is_continuous(df, col_name):
     # return df.get_column_by_name(col_name).dtype.kind in "ifc"
     # todo: do this properly
     namespace = df.__dataframe_namespace__()
+    try:
+        column_dtype = df.get_column_by_name(col_name).dtype
+    except Exception:
+        # Some unsupported dtype
+        return False
     return any(
-        isinstance(df.get_column_by_name(col_name).dtype, dtype)
+        isinstance(column_dtype, dtype)
         for dtype in (
             namespace.Float64,
             namespace.Float32,
@@ -441,7 +446,8 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                     if len(customdata_cols) > 0:
                         # here we store a data frame in customdata, and it's serialized
                         # as a list of row lists, which is what we want
-                        trace_patch["customdata"] = trace_data[customdata_cols]
+                        breakpoint()
+                        trace_patch["customdata"] = trace_data.get_columns_by_name(customdata_cols)
             elif attr_name == "color":
                 if trace_spec.constructor in [go.Choropleth, go.Choroplethmapbox]:
                     trace_patch["z"] = trace_data[attr_value]
