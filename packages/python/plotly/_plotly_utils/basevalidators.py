@@ -183,8 +183,6 @@ def is_homogeneous_array(v):
     Return whether a value is considered to be a homogeneous array
     """
     # todo
-    if hasattr(v, '__column_namespace__'):
-        return True
     np = get_module("numpy", should_load=False)
     pd = get_module("pandas", should_load=False)
     if (

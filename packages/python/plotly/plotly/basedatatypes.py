@@ -5209,6 +5209,10 @@ class BasePlotlyType(object):
         validator = self._get_validator(prop)
 
         try:
+            if hasattr(val, '__column_namespace__'):
+                val = val.column
+            elif hasattr(val, '__dataframe_namespace__'):
+                val = val.dataframe
             val = validator.validate_coerce(val)
         except ValueError as err:
             if self._skip_invalid:

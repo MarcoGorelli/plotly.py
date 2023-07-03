@@ -16,6 +16,8 @@ from dataframe_api_compat import polars_standard
 import polars as pl
 pd.DataFrame.__dataframe_standard__ = lambda df: pandas_standard.convert_to_standard_compliant_dataframe(df)
 pl.DataFrame.__dataframe_standard__ = lambda df: polars_standard.convert_to_standard_compliant_dataframe(df)
+pd.Series.__column_standard__ = lambda df: pandas_standard.convert_to_standard_compliant_column(df)
+pl.Series.__column_standard__ = lambda df: polars_standard.convert_to_standard_compliant_column(df)
 
 from plotly._subplots import (
     make_subplots,
@@ -405,7 +407,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                 if len(attr_value) > 0:
                     # here we store a data frame in customdata, and it's serialized
                     # as a list of row lists, which is what we want
-                    trace_patch["customdata"] = trace_data[attr_value]
+                    trace_patch["customdata"] = trace_data.get_columns_by_name(attr_value)
             elif attr_name == "hover_name":
                 if trace_spec.constructor not in [
                     go.Histogram,
@@ -446,7 +448,6 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                     if len(customdata_cols) > 0:
                         # here we store a data frame in customdata, and it's serialized
                         # as a list of row lists, which is what we want
-                        breakpoint()
                         trace_patch["customdata"] = trace_data.get_columns_by_name(customdata_cols)
             elif attr_name == "color":
                 if trace_spec.constructor in [go.Choropleth, go.Choroplethmapbox]:
@@ -1030,10 +1031,10 @@ def _get_reserved_col_names(args):
                 continue
             elif isinstance(arg, str):  # no need to add ints since kw arg are not ints
                 reserved_names.add(arg)
-            elif isinstance(arg, pd.Series):
-                arg_name = arg.name
-                if arg_name and hasattr(df, arg_name):
-                    in_df = arg is df[arg_name]
+            elif hasattr(arg, '__column_namespace__'):
+                arg_name = arg.column.name  # HACK!
+                if arg_name and arg_name in df.get_column_names():
+                    in_df = arg is df.get_column_by_name(arg_name)
                     if in_df:
                         reserved_names.add(arg_name)
             elif arg is df.index and arg.name is not None:
@@ -1381,14 +1382,15 @@ def build_dataframe(args, constructor):
             )
         if df_provided and no_x and no_y:
             wide_mode = True
-            if isinstance(df_input.columns, pd.MultiIndex):
-                raise TypeError(
-                    "Data frame columns is a pandas MultiIndex. "
-                    "pandas MultiIndex is not supported by plotly express "
-                    "at the moment."
-                )
-            args["wide_variable"] = list(df_input.columns)
-            var_name = df_input.columns.name
+            # if isinstance(df_input.columns, pd.MultiIndex):
+            #     raise TypeError(
+            #         "Data frame columns is a pandas MultiIndex. "
+            #         "pandas MultiIndex is not supported by plotly express "
+            #         "at the moment."
+            #     )
+            # oh, what to do here? df_input could be a...Series???
+            args["wide_variable"] = df_input.get_column_names()
+            var_name = None#df_input.columns.name
             if var_name in [None, "value", "index"] or var_name in df_input:
                 var_name = "variable"
             if constructor == go.Funnel:
@@ -1439,13 +1441,15 @@ def build_dataframe(args, constructor):
             if no_x != no_y and args["orientation"] is None:
                 args["orientation"] = "v" if no_x else "h"
             if df_provided:
-                if isinstance(df_input.index, pd.MultiIndex):
-                    raise TypeError(
-                        "Data frame index is a pandas MultiIndex. "
-                        "pandas MultiIndex is not supported by plotly express "
-                        "at the moment."
-                    )
-                args["wide_cross"] = df_input.index
+                # if isinstance(df_input.index, pd.MultiIndex):
+                #     raise TypeError(
+                #         "Data frame index is a pandas MultiIndex. "
+                #         "pandas MultiIndex is not supported by plotly express "
+                #         "at the moment."
+                #     )
+                namespace = df_input.__dataframe_namespace__()
+                index = namespace.column_from_sequence(range(df_input.shape()[0]), dtype=namespace.Int64())
+                args["wide_cross"] = index
             else:
                 args["wide_cross"] = Range(
                     label=_escape_col_name(df_input, "index", [var_name, value_name])
@@ -1499,27 +1503,41 @@ def build_dataframe(args, constructor):
         del args["wide_cross"]
         dtype = None
         for v in wide_value_vars:
-            v_dtype = df_output[v].dtype.kind
-            v_dtype = "number" if v_dtype in ["i", "f", "u"] else v_dtype
+            try:
+                v_dtype = df_output.get_column_by_name(v).dtype
+            except Exception:
+                # unsupported, escape-hatch
+                v_dtype = None
+            namespace = df_output.__dataframe_namespace__()
+            v_dtype = "number" if any(
+                isinstance(v_dtype, dtype)
+                for dtype in (
+                    namespace.Int64,
+                    namespace.Float64,
+                )
+            ) else v_dtype
             if dtype is None:
                 dtype = v_dtype
             elif dtype != v_dtype:
                 raise ValueError(
                     "Plotly Express cannot process wide-form data with columns of different type."
                 )
-        df_output = df_output.melt(
+        df_output = df_output.dataframe.melt(
             id_vars=wide_id_vars,
             value_vars=wide_value_vars,
             var_name=var_name,
             value_name=value_name,
-        )
-        assert len(df_output.columns) == len(set(df_output.columns)), (
+        ).__dataframe_standard__()
+        assert len(df_output.get_column_names()) == len(set(df_output.get_column_names())), (
             "Wide-mode name-inference failure, likely due to a internal bug. "
             "Please report this to "
             "https://github.com/plotly/plotly.py/issues/new and we will try to "
             "replicate and fix it."
         )
-        df_output[var_name] = df_output[var_name].astype(str)
+        # df_output[var_name] = df_output[var_name].astype(str)
+        new_col = df_output.get_column_by_name(var_name).column.astype(str).__column_standard__()
+        df_output = df_output.drop_column(var_name)
+        df_output = df_output.insert(0, var_name, new_col)
         orient_v = wide_orientation == "v"
 
         if hist1d_orientation:
@@ -2215,9 +2233,15 @@ def make_figure(args, constructor, trace_patch=None, layout_patch=None):
                 base = args["x"] if args["orientation"] == "v" else args["y"]
                 var = args["x"] if args["orientation"] == "h" else args["y"]
                 ascending = args.get("ecdfmode", "standard") != "reversed"
-                group = group.sort_values(by=base, ascending=ascending)
-                group_sum = group[var].sum()  # compute here before next line mutates
-                group[var] = group[var].cumsum()
+                sorted_indices = group.sorted_indices(keys=[base], ascending=ascending)
+                group = group.get_rows(sorted_indices)
+                group_sum = group.get_column_by_name(var).sum()  # compute here before next line mutates
+                var_column = group.get_column_by_name(var).column.cumsum().__column_standard__()
+                if var not in group.get_column_names():
+                    group = group.insert(0, var, var_column)
+                else:
+                    group = group.drop_column(var)
+                    group = group.insert(0, var, var_column)
                 if not ascending:
                     group = group.sort_values(by=base, ascending=True)
 
@@ -2225,7 +2249,10 @@ def make_figure(args, constructor, trace_patch=None, layout_patch=None):
                     group[var] = group_sum - group[var]
 
                 if args["ecdfnorm"] == "probability":
-                    group[var] = group[var] / group_sum
+                    var_column = group.get_column_by_name(var) / group_sum
+                    group = group.drop_column(var)
+                    group = group.insert(0, var, var_column)
+                    # group[var] = group[var] / group_sum
                 elif args["ecdfnorm"] == "percent":
                     group[var] = 100.0 * group[var] / group_sum
 
