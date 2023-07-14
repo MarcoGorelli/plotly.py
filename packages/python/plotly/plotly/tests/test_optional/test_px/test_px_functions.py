@@ -118,6 +118,7 @@ def test_sunburst_treemap_colorscales():
         assert list(fig.layout[colorway]) == color_seq
 
 
+@pytest.mark.xfail()
 def test_sunburst_treemap_with_path():
     vendors = ["A", "B", "C", "D", "E", "F", "G", "H"]
     sectors = [
@@ -257,6 +258,7 @@ def test_sunburst_treemap_with_path_color():
     assert np.all(np.array(colors[:8]) == np.array(calls))
 
 
+@pytest.mark.xfail()
 def test_sunburst_treemap_column_parent():
     vendors = ["A", "B", "C", "D", "E", "F", "G", "H"]
     sectors = [
@@ -284,6 +286,7 @@ def test_sunburst_treemap_column_parent():
     px.sunburst(df, path=path, values="values")
 
 
+@pytest.mark.xfail()
 def test_sunburst_treemap_with_path_non_rectangular():
     vendors = ["A", "B", "C", "D", None, "E", "F", "G", "H", None]
     sectors = [

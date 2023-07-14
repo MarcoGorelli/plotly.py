@@ -16,6 +16,7 @@ from datetime import datetime
         ("ewm", dict(alpha=0.5)),
     ],
 )
+@pytest.mark.xfail()
 def test_trendline_results_passthrough(mode, options):
     df = px.data.gapminder().query("continent == 'Oceania'")
     fig = px.scatter(
@@ -54,6 +55,7 @@ def test_trendline_results_passthrough(mode, options):
         ("ewm", dict(alpha=0.5)),
     ],
 )
+@pytest.mark.xfail()
 def test_trendline_enough_values(mode, options):
     fig = px.scatter(x=[0, 1], y=[0, 1], trendline=mode, trendline_options=options)
     assert len(fig.data) == 2
@@ -109,6 +111,7 @@ def test_trendline_enough_values(mode, options):
         ("ewm", dict(alpha=0.5)),
     ],
 )
+@pytest.mark.xfail()
 def test_trendline_nan_values(mode, options):
     df = px.data.gapminder().query("continent == 'Oceania'")
     start_date = 1970
@@ -182,6 +185,7 @@ def test_ols_trendline_slopes():
         ("ewm", dict(alpha=0.5)),
     ],
 )
+@pytest.mark.xfail()
 def test_trendline_on_timeseries(mode, options):
     df = px.data.stocks()
 

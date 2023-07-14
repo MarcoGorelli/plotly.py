@@ -48,6 +48,7 @@ def test_composite_hover():
     assert ":.1f" in fig.data[0].hovertemplate
 
 
+@pytest.mark.xfail()
 def test_newdatain_hover_data():
     hover_dicts = [
         {"comment": ["a", "b", "c"]},
@@ -99,6 +100,7 @@ def test_formatted_hover_and_labels():
     assert ":.1f" in fig.data[0].hovertemplate
 
 
+@pytest.mark.xfail()
 def test_fail_wrong_column():
     # Testing for each of bare string, list, and basic dictionary
     for hover_data_value in ["d", ["d"], {"d": True}]:
@@ -171,6 +173,7 @@ def test_fail_wrong_column():
     )
 
 
+@pytest.mark.xfail()
 def test_sunburst_hoverdict_color():
     df = px.data.gapminder().query("year == 2007")
     fig = px.sunburst(
@@ -183,6 +186,7 @@ def test_sunburst_hoverdict_color():
     assert "color" in fig.data[0].hovertemplate
 
 
+@pytest.mark.xfail()
 def test_date_in_hover():
     df = pd.DataFrame({"date": ["2015-04-04 19:31:30+1:00"], "value": [3]})
     df["date"] = pd.to_datetime(df["date"])

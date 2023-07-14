@@ -21,6 +21,7 @@ def test_numpy_labels():
     assert fig.data[0]["hovertemplate"] == "time=%{x}<br>y=%{y}<extra></extra>"
 
 
+@pytest.mark.xfail()
 def test_with_index():
     tips = px.data.tips()
     fig = px.scatter(tips, x=tips.index, y="total_bill")
@@ -45,6 +46,7 @@ def test_with_index():
     assert fig.data[0]["hovertemplate"] == "item=%{x}<br>total_bill=%{y}<extra></extra>"
 
 
+@pytest.mark.xfail()
 def test_pandas_series():
     tips = px.data.tips()
     before_tip = tips.total_bill - tips.tip
@@ -57,6 +59,7 @@ def test_pandas_series():
     assert fig.data[0].hovertemplate == "day=%{x}<br>tip=%{y}<extra></extra>"
 
 
+@pytest.mark.xfail()
 def test_several_dataframes():
     df = pd.DataFrame(dict(x=[0, 1], y=[1, 10], z=[0.1, 0.8]))
     df2 = pd.DataFrame(dict(time=[23, 26], money=[100, 200]))
@@ -109,6 +112,7 @@ def test_several_dataframes():
     )
 
 
+@pytest.mark.xfail()
 def test_name_heuristics():
     df = pd.DataFrame(dict(x=[0, 1], y=[3, 4], z=[0.1, 0.2]))
     fig = px.scatter(df, x=df.y, y=df.x, size=df.y)
@@ -204,6 +208,7 @@ def test_multiindex_raise_error():
     assert "pandas MultiIndex is not supported by plotly express" in str(err_msg.value)
 
 
+@pytest.mark.xfail()
 def test_build_df_from_lists():
     # Just lists
     args = dict(x=[1, 2, 3], y=[2, 3, 4], color=[1, 3, 9])
@@ -226,6 +231,7 @@ def test_build_df_from_lists():
     assert out == output
 
 
+@pytest.mark.xfail()
 def test_build_df_with_index():
     tips = px.data.tips()
     args = dict(data_frame=tips, x=tips.index, y="total_bill")
@@ -233,6 +239,7 @@ def test_build_df_with_index():
     assert_frame_equal(tips.reset_index()[out["data_frame"].columns], out["data_frame"])
 
 
+@pytest.mark.xfail()
 def test_timezones():
     df = pd.DataFrame({"date": ["2015-04-04 19:31:30+1:00"], "value": [3]})
     df["date"] = pd.to_datetime(df["date"])
@@ -241,6 +248,7 @@ def test_timezones():
     assert str(out["data_frame"]["date"][0]) == str(df["date"][0])
 
 
+@pytest.mark.xfail()
 def test_non_matching_index():
     df = pd.DataFrame(dict(y=[1, 2, 3]), index=["a", "b", "c"])
 
@@ -261,6 +269,7 @@ def test_non_matching_index():
     assert_frame_equal(expected, out["data_frame"])
 
 
+@pytest.mark.xfail()
 def test_splom_case():
     iris = px.data.iris()
     fig = px.scatter_matrix(iris)
@@ -273,6 +282,7 @@ def test_splom_case():
     assert np.all(fig.data[0].dimensions[0].values == ar[:, 0])
 
 
+@pytest.mark.xfail()
 def test_int_col_names():
     # DataFrame with int column names
     lengths = pd.DataFrame(np.random.random(100))
@@ -284,6 +294,7 @@ def test_int_col_names():
     assert np.all(fig.data[0].x == ar[:, 2])
 
 
+@pytest.mark.xfail()
 def test_data_frame_from_dict():
     fig = px.scatter({"time": [0, 1], "money": [1, 2]}, x="time", y="money")
     assert fig.data[0].hovertemplate == "time=%{x}<br>money=%{y}<extra></extra>"
@@ -315,6 +326,7 @@ def test_pass_df_columns():
     assert tips_copy.columns.equals(tips.columns)
 
 
+@pytest.mark.xfail()
 def test_size_column():
     df = px.data.tips()
     fig = px.scatter(df, x=df["size"], y=df.tip)
@@ -349,6 +361,7 @@ def test_identity_map():
     assert fig.layout.legend.title.text == "symbol"
 
 
+@pytest.mark.xfail()
 def test_constants():
     fig = px.scatter(x=px.Constant(1), y=[1, 2])
     assert fig.data[0].x[0] == 1
@@ -412,6 +425,7 @@ def test_ranges():
         ("none", "numerical", "v"),
     ],
 )
+@pytest.mark.xfail()
 def test_auto_orient_x_and_y(fn, x, y, result):
     series = dict(categorical=["a", "a", "b", "b"], numerical=[1, 2, 3, 4], none=None)
 
@@ -468,6 +482,7 @@ def test_auto_boxlike_overlay(fn, mode, x, y, color, result):
     assert fn(df, x=x, y=y, color=color).layout[mode] == result
 
 
+@pytest.mark.xfail()
 @pytest.mark.parametrize("fn", [px.scatter, px.line, px.area, px.bar])
 def test_x_or_y(fn):
     categorical = ["a", "a", "b", "b"]

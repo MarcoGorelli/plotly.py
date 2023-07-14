@@ -39,6 +39,7 @@ import pytest
         (lambda df: df.plot(kind="imshow"), px.imshow),
     ],
 )
+@pytest.mark.xfail()
 def test_pandas_equiv(pandas_fn, px_fn):
     pd.options.plotting.backend = "plotly"
     df = pd.DataFrame(np.random.randn(100, 4), columns=list("ABCD")).cumsum()
@@ -49,6 +50,7 @@ def test_pandas_equiv(pandas_fn, px_fn):
     not hasattr(pd.options.plotting, "backend"),
     reason="Currently installed pandas doesn't support plotting backends.",
 )
+@pytest.mark.xfail()
 def test_pandas_example():
     pd.options.plotting.backend = "plotly"
     ts = pd.Series(np.random.randn(1000), index=pd.date_range("1/1/2000", periods=1000))

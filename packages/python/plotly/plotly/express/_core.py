@@ -1066,7 +1066,7 @@ def _is_col_list(df_input, arg):
         return False  # not iterable
     for c in arg:
         if isinstance(c, str) or isinstance(c, int):
-            if df_input is None or c not in df_input.columns:
+            if df_input is None or c not in df_input.get_column_names():
                 return False
         else:
             try:
@@ -1143,7 +1143,8 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
             )
         else:
             # todo
-            df_output[df_input.columns] = df_input[df_input.columns]
+            df_output = df_input
+            # df_output[df_input.columns] = df_input[df_input.columns]
 
     # hover_data is a dict
     hover_data_is_dict = (
@@ -1229,6 +1230,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                                 length,
                             )
                         )
+                    # not sure, what to do here, could be anything?
                     df_output[col_name] = to_unindexed_series(real_argument)
                 elif not df_provided:
                     raise ValueError(
@@ -1245,7 +1247,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                         err_msg = (
                             "Value of '%s' is not the name of a column in 'data_frame'. "
                             "Expected one of %s but received: %s"
-                            % (field, str(list(df_input.columns)), argument)
+                            % (field, str(list(df_input.get_column_names())), argument)
                         )
                         if argument == "index":
                             err_msg += "\n To use the index, pass it in directly as `df.index`."
@@ -1257,8 +1259,8 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                         "length of  previously-processed arguments %s is %d"
                         % (
                             field,
-                            len(df_input[argument]),
-                            str(list(df_output.columns)),
+                            len(df_input.get_column_by_name(argument)),
+                            str(list(df_output.get_column_names())),
                             length,
                         )
                     )
@@ -1275,13 +1277,14 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
             else:
                 if df_provided and hasattr(argument, "name"):
                     if False:#argument is df_input.index:
-                        if argument.name is None or argument.name in df_input:
-                            col_name = "index"
-                        else:
-                            col_name = argument.name
-                        col_name = _escape_col_name(
-                            df_input, col_name, [var_name, value_name]
-                        )
+                        # if argument.name is None or argument.name in df_input:
+                        #     col_name = "index"
+                        # else:
+                        #     col_name = argument.name
+                        # col_name = _escape_col_name(
+                        #     df_input, col_name, [var_name, value_name]
+                        # )
+                        pass
                     else:
                         if (
                             argument.name is not None
@@ -1297,7 +1300,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                         "All arguments should have the same length. "
                         "The length of argument `%s` is %d, whereas the "
                         "length of  previously-processed arguments %s is %d"
-                        % (field, len(argument), str(list(df_output.columns)), length)
+                        % (field, len(argument), str(list(df_output.get_column_names())), length)
                     )
                 col_output = to_unindexed_series(argument)
                 namespace = col_output.__column_namespace__()
@@ -1323,9 +1326,11 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                 wide_id_vars.add(str(col_name))
 
     for col_name in ranges:
-        df_output[col_name] = range(len(df_output))
+        df_output = df_output.insert(0, col_name, namespace.column_from_sequence(range(df_output.shape()[0]), namespace.Int64()))
+        # df_output[col_name] = range(df_output.shape()[0])
 
     for col_name in constants:
+        # todo!
         df_output[col_name] = constants[col_name]
 
     return df_output, wide_id_vars
@@ -1530,12 +1535,12 @@ def build_dataframe(args, constructor):
                 raise ValueError(
                     "Plotly Express cannot process wide-form data with columns of different type."
                 )
-        df_output = df_output.dataframe.melt(
+        df_output = df_output.melt(
             id_vars=wide_id_vars,
             value_vars=wide_value_vars,
             var_name=var_name,
             value_name=value_name,
-        ).__dataframe_standard__()
+        )
         assert len(df_output.get_column_names()) == len(set(df_output.get_column_names())), (
             "Wide-mode name-inference failure, likely due to a internal bug. "
             "Please report this to "
@@ -1594,10 +1599,7 @@ def build_dataframe(args, constructor):
 
 
 def _check_dataframe_all_leaves(df):
-    sorted_indices = df.sorted_indices(df.get_column_names())
-    df_sorted = df.get_rows(sorted_indices)
-    # todo: this is REALLY dirty!
-    df_sorted = df_sorted.dataframe
+    df_sorted = df.sort_values(by=list(df.columns))
     null_mask = df_sorted.isnull()
     df_sorted = df_sorted.astype(str)
     null_indices = np.nonzero(null_mask.any(axis=1).values)[0]
@@ -1649,8 +1651,6 @@ def process_dataframe_hierarchy(args):
     agg_f = {}
     aggfunc_color = None
     if args["values"]:
-        # HACK!
-        df = df.dataframe
         try:
             df[args["values"]] = pd.to_numeric(df[args["values"]])
         except ValueError:
@@ -1665,8 +1665,6 @@ def process_dataframe_hierarchy(args):
                 df[new_value_col_name] = df[args["values"]]
                 args["values"] = new_value_col_name
         count_colname = args["values"]
-
-        df = df.__dataframe_standard__()
     else:
         # we need a count column for the first groupby and the weighted mean of color
         # trick to be sure the col name is unused: take the sum of existing names
@@ -1705,12 +1703,10 @@ def process_dataframe_hierarchy(args):
     df_all_trees = pd.DataFrame(columns=["labels", "parent", "id"] + cols)
     #  Set column type here (useful for continuous vs discrete colorscale)
     for col in cols:
-        # HACK!
-        df_all_trees[col] = df_all_trees[col].astype(df.dataframe[col].dtype)
+        df_all_trees[col] = df_all_trees[col].astype(df[col].dtype)
     for i, level in enumerate(path):
         df_tree = pd.DataFrame(columns=df_all_trees.columns)
-        # HACK!
-        dfg = df.dataframe.groupby(path[i:]).agg(agg_f)
+        dfg = df.groupby(path[i:]).agg(agg_f)
         dfg = dfg.reset_index()
         # Path label massaging
         df_tree["labels"] = dfg[level].copy().astype(str)

@@ -119,7 +119,7 @@ def copy_to_readonly_numpy_array(v, kind=None, force_numeric=False):
             return copy_to_readonly_numpy_array(
                 np.array(v), kind=kind, force_numeric=force_numeric
             )
-        elif is_numpy_convertable(getattr(v, '_series', None)):
+        elif is_numpy_convertable(getattr(v, 'column', None)):
             return copy_to_readonly_numpy_array(
                 np.array(v._series), kind=kind, force_numeric=force_numeric
             )
