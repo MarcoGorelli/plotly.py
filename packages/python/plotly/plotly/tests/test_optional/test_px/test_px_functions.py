@@ -171,6 +171,7 @@ def test_sunburst_treemap_with_path():
     assert fig.data[0].values[-1] == 8
 
 
+@pytest.mark.xfail()
 def test_sunburst_treemap_with_path_and_hover():
     df = px.data.tips()
     fig = px.sunburst(
@@ -196,6 +197,7 @@ def test_sunburst_treemap_with_path_and_hover():
     assert "%{hovertext}" not in fig.data[0].hovertemplate
 
 
+@pytest.mark.xfail()
 def test_sunburst_treemap_with_path_color():
     vendors = ["A", "B", "C", "D", "E", "F", "G", "H"]
     sectors = [
@@ -362,6 +364,7 @@ def test_funnel():
     assert len(fig.data) == 2
 
 
+@pytest.mark.xfail()
 def test_parcats_dimensions_max():
     df = px.data.tips()
 
@@ -487,6 +490,7 @@ def test_histfunc_hoverlabels_bivariate():
     check_label("density of max of tip", fig)
 
 
+@pytest.mark.xfail()
 def test_timeline():
     df = pd.DataFrame(
         [

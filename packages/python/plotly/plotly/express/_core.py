@@ -1805,7 +1805,7 @@ def infer_config(args, constructor, trace_patch, layout_patch):
     # Compute sizeref
     sizeref = 0
     if "size" in args and args["size"]:
-        sizeref = args["data_frame"][args["size"]].max() / args["size_max"] ** 2
+        sizeref = args["data_frame"].get_column_by_name(args["size"]).max() / args["size_max"] ** 2
 
     # Compute color attributes and grouping attributes
     if "color" in args:
