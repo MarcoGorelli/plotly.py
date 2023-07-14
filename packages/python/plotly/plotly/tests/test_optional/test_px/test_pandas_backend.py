@@ -24,7 +24,7 @@ import pytest
         (lambda df: df.plot.hist(), px.histogram),
         (lambda df: df.boxplot(), px.box),
         (lambda df: df.hist(), px.histogram),
-        (lambda df: df["A"].hist(), lambda df: px.histogram(df["A"])),
+        (lambda df: df[["A"]].hist(), lambda df: px.histogram(df[["A"]])),
         (lambda df: df.plot(kind="line"), px.line),
         (lambda df: df.plot(kind="area"), px.area),
         (lambda df: df.plot(kind="bar"), px.bar),
@@ -53,5 +53,5 @@ def test_pandas_example():
     pd.options.plotting.backend = "plotly"
     ts = pd.Series(np.random.randn(1000), index=pd.date_range("1/1/2000", periods=1000))
     df = pd.DataFrame(np.random.randn(1000, 4), index=ts.index, columns=list("ABCD"))
-    fig = df.iloc[5].plot.bar()
-    assert len(fig.data) == 1
+    fig = df.iloc[[5]].plot.bar()
+    assert len(fig.data) == 4

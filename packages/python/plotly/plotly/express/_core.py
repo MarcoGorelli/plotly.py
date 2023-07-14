@@ -331,7 +331,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
             if attr_name == "size":
                 if "marker" not in trace_patch:
                     trace_patch["marker"] = dict()
-                trace_patch["marker"]["size"] = trace_data[attr_value]
+                trace_patch["marker"]["size"] = trace_data.get_column_by_name(attr_value)
                 trace_patch["marker"]["sizemode"] = "area"
                 trace_patch["marker"]["sizeref"] = sizeref
                 mapping_labels[attr_label] = "%{marker.size}"
@@ -342,16 +342,19 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                 if trace_spec.constructor == go.Histogram:
                     mapping_labels["count"] = "%{x}"
             elif attr_name == "trendline":
+                # todo: use drop_nulls
+                mask = trace_data.get_columns_by_name([args['x'], args['y']]).is_null().any_rowwise()
                 if (
                     args["x"]
                     and args["y"]
-                    and len(trace_data[[args["x"], args["y"]]].dropna()) > 1
+                    and (trace_data.get_columns_by_name([args["x"], args["y"]]).get_rows_by_mask(~mask)).shape()[0] > 1
                 ):
 
                     # sorting is bad but trace_specs with "trendline" have no other attrs
-                    sorted_trace_data = trace_data.sort_values(by=args["x"])
-                    y = sorted_trace_data[args["y"]].values
-                    x = sorted_trace_data[args["x"]].values
+                    sorted_indices = trace_data.sorted_indices([args["x"]])
+                    sorted_trace_data = trace_data.get_rows(sorted_indices)
+                    y = sorted_trace_data.get_column_by_name(args["y"]).column.to_numpy()
+                    x = sorted_trace_data.get_column_by_name(args["x"]).column.to_numpy()
 
                     if x.dtype.type == np.datetime64:
                         # convert to unix epoch seconds
@@ -380,11 +383,13 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                     non_missing = np.logical_not(
                         np.logical_or(np.isnan(y), np.isnan(x))
                     )
-                    trace_patch["x"] = sorted_trace_data[args["x"]][non_missing]
+                    namespace = sorted_trace_data.__dataframe_namespace__()
+                    non_missing = namespace.column_from_sequence(non_missing, namespace.Bool())
+                    trace_patch["x"] = sorted_trace_data.get_column_by_name(args["x"]).get_rows_by_mask(non_missing)
                     trendline_function = trendline_functions[attr_value]
                     y_out, hover_header, fit_results = trendline_function(
                         args["trendline_options"],
-                        sorted_trace_data[args["x"]],
+                        sorted_trace_data.get_column_by_name(args["x"]),
                         x,
                         y,
                         args["x"],
@@ -402,7 +407,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                 arr = "arrayminus" if attr_name.endswith("minus") else "array"
                 if error_xy not in trace_patch:
                     trace_patch[error_xy] = {}
-                trace_patch[error_xy][arr] = trace_data[attr_value]
+                trace_patch[error_xy][arr] = trace_data.get_column_by_name(attr_value)
             elif attr_name == "custom_data":
                 if len(attr_value) > 0:
                     # here we store a data frame in customdata, and it's serialized
@@ -414,7 +419,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                     go.Histogram2d,
                     go.Histogram2dContour,
                 ]:
-                    trace_patch["hovertext"] = trace_data[attr_value]
+                    trace_patch["hovertext"] = trace_data.get_column_by_name(attr_value)
                     if hover_header == "":
                         hover_header = "<b>%{hovertext}</b><br><br>"
             elif attr_name == "hover_data":
@@ -451,7 +456,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                         trace_patch["customdata"] = trace_data.get_columns_by_name(customdata_cols)
             elif attr_name == "color":
                 if trace_spec.constructor in [go.Choropleth, go.Choroplethmapbox]:
-                    trace_patch["z"] = trace_data[attr_value]
+                    trace_patch["z"] = trace_data.get_column_by_name(attr_value)
                     trace_patch["coloraxis"] = "coloraxis1"
                     mapping_labels[attr_label] = "%{z}"
                 elif trace_spec.constructor in [
@@ -465,7 +470,7 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                         trace_patch["marker"] = dict()
 
                     if args.get("color_is_continuous"):
-                        trace_patch["marker"]["colors"] = trace_data[attr_value]
+                        trace_patch["marker"]["colors"] = trace_data.get_column_by_name(attr_value)
                         trace_patch["marker"]["coloraxis"] = "coloraxis1"
                         mapping_labels[attr_label] = "%{color}"
                     else:
@@ -474,7 +479,9 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                             mapping = args["color_discrete_map"].copy()
                         else:
                             mapping = {}
-                        for cat in trace_data[attr_value]:
+                        column = trace_data.get_column_by_name(attr_value)
+                        for i in range(len(column)):
+                            cat = column.get_value(i)
                             if mapping.get(cat) is None:
                                 mapping[cat] = args["color_discrete_sequence"][
                                     len(mapping) % len(args["color_discrete_sequence"])
@@ -490,20 +497,20 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                     trace_patch[colorable]["coloraxis"] = "coloraxis1"
                     mapping_labels[attr_label] = "%%{%s.color}" % colorable
             elif attr_name == "animation_group":
-                trace_patch["ids"] = trace_data[attr_value]
+                trace_patch["ids"] = trace_data.get_column_by_name(attr_value)
             elif attr_name == "locations":
-                trace_patch[attr_name] = trace_data[attr_value]
+                trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
                 mapping_labels[attr_label] = "%{location}"
             elif attr_name == "values":
-                trace_patch[attr_name] = trace_data[attr_value]
+                trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
                 _label = "value" if attr_label == "values" else attr_label
                 mapping_labels[_label] = "%{value}"
             elif attr_name == "parents":
-                trace_patch[attr_name] = trace_data[attr_value]
+                trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
                 _label = "parent" if attr_label == "parents" else attr_label
                 mapping_labels[_label] = "%{parent}"
             elif attr_name == "ids":
-                trace_patch[attr_name] = trace_data[attr_value]
+                trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
                 _label = "id" if attr_label == "ids" else attr_label
                 mapping_labels[_label] = "%{id}"
             elif attr_name == "names":
@@ -514,11 +521,11 @@ def make_trace_kwargs(args, trace_spec, trace_data, mapping_labels, sizeref):
                     go.Pie,
                     go.Funnelarea,
                 ]:
-                    trace_patch["labels"] = trace_data[attr_value]
+                    trace_patch["labels"] = trace_data.get_column_by_name(attr_value)
                     _label = "label" if attr_label == "names" else attr_label
                     mapping_labels[_label] = "%{label}"
                 else:
-                    trace_patch[attr_name] = trace_data[attr_value]
+                    trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
             else:
                 trace_patch[attr_name] = trace_data.get_column_by_name(attr_value)
                 mapping_labels[attr_label] = "%%{%s}" % attr_name
@@ -838,6 +845,7 @@ def make_trace_spec(args, constructor, attrs, trace_patch):
             args["render_mode"] == "webgl"
             or (
                 args["render_mode"] == "auto"
+                and args['data_frame'] is not None
                 and args["data_frame"].shape()[0] > 1000
                 and args["animation_frame"] is None
             )
@@ -1037,8 +1045,8 @@ def _get_reserved_col_names(args):
                     in_df = arg is df.get_column_by_name(arg_name)
                     if in_df:
                         reserved_names.add(arg_name)
-            elif arg is df.index and arg.name is not None:
-                reserved_names.add(arg.name)
+            # elif arg is df.index and arg.name is not None:
+            #     reserved_names.add(arg.name)
 
     return reserved_names
 
@@ -1266,7 +1274,7 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
             # ----------------- argument is likely a column / array / list.... -------
             else:
                 if df_provided and hasattr(argument, "name"):
-                    if argument is df_input.index:
+                    if False:#argument is df_input.index:
                         if argument.name is None or argument.name in df_input:
                             col_name = "index"
                         else:
@@ -1277,8 +1285,8 @@ def process_args_into_dataframe(args, wide_mode, var_name, value_name):
                     else:
                         if (
                             argument.name is not None
-                            and argument.name in df_input
-                            and argument is df_input[argument.name]
+                            and argument.name in df_input.get_column_names()
+                            and argument is df_input.get_column_by_name(argument.name)
                         ):
                             col_name = argument.name
                 if col_name is None:  # numpy array, list...
@@ -1586,7 +1594,10 @@ def build_dataframe(args, constructor):
 
 
 def _check_dataframe_all_leaves(df):
-    df_sorted = df.sort_values(by=list(df.columns))
+    sorted_indices = df.sorted_indices(df.get_column_names())
+    df_sorted = df.get_rows(sorted_indices)
+    # todo: this is REALLY dirty!
+    df_sorted = df_sorted.dataframe
     null_mask = df_sorted.isnull()
     df_sorted = df_sorted.astype(str)
     null_indices = np.nonzero(null_mask.any(axis=1).values)[0]
@@ -1615,14 +1626,16 @@ def process_dataframe_hierarchy(args):
     """
     df = args["data_frame"]
     path = args["path"][::-1]
-    _check_dataframe_all_leaves(df[path[::-1]])
+    _check_dataframe_all_leaves(df.get_columns_by_name(path[::-1]))
     discrete_color = False
 
     new_path = []
     for col_name in path:
         new_col_name = col_name + "_path_copy"
         new_path.append(new_col_name)
-        df[new_col_name] = df[col_name]
+        col = df.get_column_by_name(col_name)
+        df = df.drop_column(col_name)
+        df = df.insert(0, new_col_name, col)
     path = new_path
     # ------------ Define aggregation functions --------------------------------
 
@@ -1636,6 +1649,8 @@ def process_dataframe_hierarchy(args):
     agg_f = {}
     aggfunc_color = None
     if args["values"]:
+        # HACK!
+        df = df.dataframe
         try:
             df[args["values"]] = pd.to_numeric(df[args["values"]])
         except ValueError:
@@ -1650,16 +1665,20 @@ def process_dataframe_hierarchy(args):
                 df[new_value_col_name] = df[args["values"]]
                 args["values"] = new_value_col_name
         count_colname = args["values"]
+
+        df = df.__dataframe_standard__()
     else:
         # we need a count column for the first groupby and the weighted mean of color
         # trick to be sure the col name is unused: take the sum of existing names
         count_colname = (
             "count"
-            if "count" not in df.columns
+            if "count" not in df.get_column_names()
             else "".join([str(el) for el in list(df.columns)])
         )
         # we can modify df because it's a copy of the px argument
-        df[count_colname] = 1
+        namespace = df.__dataframe_namespace__()
+        column = namespace.column_from_sequence([1]*df.shape()[0], dtype=namespace.Int64())
+        df = df.insert(0, count_colname, column)
         args["values"] = count_colname
     agg_f[count_colname] = "sum"
 
@@ -1670,13 +1689,13 @@ def process_dataframe_hierarchy(args):
         else:
 
             def aggfunc_continuous(x):
-                return np.average(x, weights=df.loc[x.index, count_colname])
+                return np.average(x, weights=df.dataframe.loc[x.index, count_colname])
 
             aggfunc_color = aggfunc_continuous
         agg_f[args["color"]] = aggfunc_color
 
     #  Other columns (for color, hover_data, custom_data etc.)
-    cols = list(set(df.columns).difference(path))
+    cols = list(set(df.get_column_names()).difference(path))
     for col in cols:  # for hover_data, custom_data etc.
         if col not in agg_f:
             agg_f[col] = aggfunc_discrete
@@ -1686,10 +1705,12 @@ def process_dataframe_hierarchy(args):
     df_all_trees = pd.DataFrame(columns=["labels", "parent", "id"] + cols)
     #  Set column type here (useful for continuous vs discrete colorscale)
     for col in cols:
-        df_all_trees[col] = df_all_trees[col].astype(df[col].dtype)
+        # HACK!
+        df_all_trees[col] = df_all_trees[col].astype(df.dataframe[col].dtype)
     for i, level in enumerate(path):
         df_tree = pd.DataFrame(columns=df_all_trees.columns)
-        dfg = df.groupby(path[i:]).agg(agg_f)
+        # HACK!
+        dfg = df.dataframe.groupby(path[i:]).agg(agg_f)
         dfg = dfg.reset_index()
         # Path label massaging
         df_tree["labels"] = dfg[level].copy().astype(str)
@@ -1718,7 +1739,7 @@ def process_dataframe_hierarchy(args):
         df_all_trees = df_all_trees.sort_values(by=sort_col_name)
 
     # Now modify arguments
-    args["data_frame"] = df_all_trees
+    args["data_frame"] = df_all_trees.__dataframe_standard__()
     args["path"] = None
     args["ids"] = "id"
     args["names"] = "labels"
@@ -1950,7 +1971,7 @@ def infer_config(args, constructor, trace_patch, layout_patch):
         args[other_position] = None
 
     # Ignore facet rows and columns when data frame is empty so as to prevent nrows/ncols equaling 0
-    if args["data_frame"].shape()[0] == 0:
+    if args['data_frame'] is not None and args["data_frame"].shape()[0] == 0:
         args["facet_row"] = args["facet_col"] = None
 
     # If both marginals and faceting are specified, faceting wins
