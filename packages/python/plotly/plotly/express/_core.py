@@ -1039,12 +1039,12 @@ def _get_reserved_col_names(args):
                 continue
             elif isinstance(arg, str):  # no need to add ints since kw arg are not ints
                 reserved_names.add(arg)
-            elif hasattr(arg, '__column_namespace__'):
-                arg_name = arg.column.name  # HACK!
-                if arg_name and arg_name in df.get_column_names():
-                    in_df = arg is df.get_column_by_name(arg_name)
-                    if in_df:
-                        reserved_names.add(arg_name)
+            # elif hasattr(arg, '__column_namespace__'):
+                # arg_name = arg.column.name  # HACK!
+                # if arg_name and arg_name in df.get_column_names():
+                #     in_df = arg is df.get_column_by_name(arg_name)
+                #     if in_df:
+                #         reserved_names.add(arg_name)
             # elif arg is df.index and arg.name is not None:
             #     reserved_names.add(arg.name)
 
