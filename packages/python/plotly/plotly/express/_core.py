@@ -1626,18 +1626,16 @@ def process_dataframe_hierarchy(args):
     """
     Build dataframe for sunburst, treemap, or icicle when the path argument is provided.
     """
-    df = args["data_frame"]
+    df = args["data_frame"].dataframe
     path = args["path"][::-1]
-    _check_dataframe_all_leaves(df.get_columns_by_name(path[::-1]))
+    _check_dataframe_all_leaves(df[path[::-1]])
     discrete_color = False
 
     new_path = []
     for col_name in path:
         new_col_name = col_name + "_path_copy"
         new_path.append(new_col_name)
-        col = df.get_column_by_name(col_name)
-        df = df.drop_column(col_name)
-        df = df.insert(0, new_col_name, col)
+        df[new_col_name] = df[col_name]
     path = new_path
     # ------------ Define aggregation functions --------------------------------
 
@@ -1670,30 +1668,28 @@ def process_dataframe_hierarchy(args):
         # trick to be sure the col name is unused: take the sum of existing names
         count_colname = (
             "count"
-            if "count" not in df.get_column_names()
+            if "count" not in df.columns
             else "".join([str(el) for el in list(df.columns)])
         )
         # we can modify df because it's a copy of the px argument
-        namespace = df.__dataframe_namespace__()
-        column = namespace.column_from_sequence([1]*df.shape()[0], dtype=namespace.Int64())
-        df = df.insert(0, count_colname, column)
+        df[count_colname] = 1
         args["values"] = count_colname
     agg_f[count_colname] = "sum"
 
     if args["color"]:
-        if not _is_continuous(df, args["color"]):
+        if not _is_continuous(df.__dataframe_standard__(), args["color"]):
             aggfunc_color = aggfunc_discrete
             discrete_color = True
         else:
 
             def aggfunc_continuous(x):
-                return np.average(x, weights=df.dataframe.loc[x.index, count_colname])
+                return np.average(x, weights=df.loc[x.index, count_colname])
 
             aggfunc_color = aggfunc_continuous
         agg_f[args["color"]] = aggfunc_color
 
     #  Other columns (for color, hover_data, custom_data etc.)
-    cols = list(set(df.get_column_names()).difference(path))
+    cols = list(set(df.columns).difference(path))
     for col in cols:  # for hover_data, custom_data etc.
         if col not in agg_f:
             agg_f[col] = aggfunc_discrete
@@ -1749,7 +1745,6 @@ def process_dataframe_hierarchy(args):
         else:
             args["hover_data"].append(args["color"])
     return args
-
 
 def process_dataframe_timeline(args):
     """

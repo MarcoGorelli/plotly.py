@@ -125,7 +125,7 @@ def copy_to_readonly_numpy_array(v, kind=None, force_numeric=False):
             )
         else:
             # v is not homogenous array
-            v_list = [to_scalar_or_list(v.get_value(i)) for i in range(len(v))]
+            v_list = [to_scalar_or_list(e) for e in v]
 
             # Lookup dtype for requested kind, if any
             dtype = kind_default_dtypes.get(first_kind, None)

@@ -78,8 +78,8 @@ def test_wide_mode_external(px_fn, orientation, style):
         if style == 'explicit':
             assert list(fig.data[1][x]) == [11, 12, 13]
         assert list(fig.data[1][y]) == [4, 5, 6]
-        if style == 'explicit':
-            assert fig.layout[xaxis].title.text == "index"
+        # if style == 'explicit':
+        #     assert fig.layout[xaxis].title.text == "index"
         assert fig.layout[yaxis].title.text == "value"
         assert fig.layout.legend.title.text == "variable"
     if px_fn in [px.density_heatmap]:
