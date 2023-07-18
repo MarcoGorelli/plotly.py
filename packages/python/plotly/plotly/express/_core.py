@@ -1415,8 +1415,8 @@ def build_dataframe(args, constructor):
         elif wide_x != wide_y:
             wide_mode = True
             args["wide_variable"] = args["y"] if wide_y else args["x"]
-            if df_provided and args["wide_variable"] is df_input.columns:
-                var_name = df_input.columns.name
+            # if df_provided and args["wide_variable"] is df_input.columns:
+            #     var_name = df_input.columns.name
             if isinstance(args["wide_variable"], pd.Index):
                 args["wide_variable"] = list(args["wide_variable"])
             if var_name in [None, "value", "index"] or (
@@ -1535,12 +1535,12 @@ def build_dataframe(args, constructor):
                 raise ValueError(
                     "Plotly Express cannot process wide-form data with columns of different type."
                 )
-        df_output = df_output.melt(
+        df_output = pd.api.interchange.from_dataframe(df_output.dataframe).melt(
             id_vars=wide_id_vars,
             value_vars=wide_value_vars,
             var_name=var_name,
             value_name=value_name,
-        )
+        ).__dataframe_standard__()
         assert len(df_output.get_column_names()) == len(set(df_output.get_column_names())), (
             "Wide-mode name-inference failure, likely due to a internal bug. "
             "Please report this to "
