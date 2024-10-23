@@ -1119,12 +1119,18 @@ def to_unindexed_series(x, name=None, native_namespace=None):
     required to get things to match up right in the new DataFrame we're building.
     """
     x_native = nw.to_native(x, strict=False)
-    if nw.dependencies.is_pandas_like_series(x_native):
+    if nw.dependencies.is_pandas_series(x_native):
         import pandas as pd
-        return nw.from_native(pd.Series(x_native, name=name).reset_index(drop=True), series_only=True)
+        has_default_index = isinstance(x_native.index, pd.RangeIndex) and x_native.index.start == 0 and x_native.index.stop == len(x_native) and x_native.index.step == 1
+        if has_default_index and x_native.name == name:
+            return nw.from_native(x_native, series_only=True)
+        x_native = x_native.__class__(x_native, name=name)
+        if has_default_index:
+            return nw.from_native(x_native, series_only=True)
+        return nw.from_native(x_native.reset_index(drop=True), series_only=True)
     x = nw.from_native(x, series_only=True, strict=False)
     if isinstance(x, nw.Series):
-        return x.rename(name)
+        return nw.maybe_reset_index(x).rename(name)
     else:
         if native_namespace is not None:
             return nw.new_series(name=name, values=x, native_namespace=native_namespace)
