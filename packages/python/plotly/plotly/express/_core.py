@@ -21,6 +21,7 @@ from plotly._subplots import (
 
 NO_COLOR = "px_no_color_constant"
 
+
 trendline_functions = dict(
     lowess=lowess, rolling=rolling, ewm=ewm, expanding=expanding, ols=ols
 )
@@ -2251,78 +2252,6 @@ def infer_config(args, constructor, trace_patch, layout_patch):
     trace_specs = make_trace_spec(args, constructor, attrs, trace_patch)
     return trace_specs, grouped_mappings, sizeref, show_colorbar
 
-def _get_groups_and_orders_pandas(args, grouper):
-    """
-    `orders` is the user-supplied ordering with the remaining data-frame-supplied
-    ordering appended if the column is used for grouping. It includes anything the user
-    gave, for any variable, including values not present in the dataset. It's a dict
-    where the keys are e.g. "x" or "color"
-
-    `groups` is the dicts of groups, ordered by the order above. Its keys are
-    tuples like [("value1", ""), ("value2", "")] where each tuple contains the name
-    of a single dimension-group
-    """
-    from packaging import version
-    import pandas as pd
-    pandas_2_2_0 = version.parse(pd.__version__) >= version.parse("2.2.0")
-    orders = {} if "category_orders" not in args else args["category_orders"].copy()
-
-    # figure out orders and what the single group name would be if there were one
-    single_group_name = []
-    unique_cache = dict()
-    for col in grouper:
-        if col == one_group:
-            single_group_name.append("")
-        else:
-            if col not in unique_cache:
-                unique_cache[col] = list(args["data_frame"].to_native()[col].unique())
-            uniques = unique_cache[col]
-            if len(uniques) == 1:
-                single_group_name.append(uniques[0])
-            if col not in orders:
-                orders[col] = uniques
-            else:
-                orders[col] = list(OrderedDict.fromkeys(list(orders[col]) + uniques))
-    df = args["data_frame"].to_native()
-    if len(single_group_name) == len(grouper):
-        # we have a single group, so we can skip all group-by operations!
-        groups = {tuple(single_group_name): nw.from_native(df)}
-    else:
-        required_grouper = [g for g in grouper if g != one_group]
-        grouped = df.groupby(
-            required_grouper, sort=False, observed=True
-        )  # skip one_group groupers
-        group_indices = grouped.indices
-        sorted_group_names = [
-            g if len(required_grouper) != 1 else (g,) for g in group_indices
-        ]
-
-        for i, col in reversed(list(enumerate(required_grouper))):
-            sorted_group_names = sorted(
-                sorted_group_names,
-                key=lambda g: orders[col].index(g[i]) if g[i] in orders[col] else -1,
-            )
-
-        # calculate the full group_names by inserting "" in the tuple index for one_group groups
-        full_sorted_group_names = [list(t) for t in sorted_group_names]
-        for i, col in enumerate(grouper):
-            if col == one_group:
-                for g in full_sorted_group_names:
-                    g.insert(i, "")
-        full_sorted_group_names = [tuple(g) for g in full_sorted_group_names]
-
-        groups = {}
-        for sf, s in zip(full_sorted_group_names, sorted_group_names):
-            if len(s) > 1:
-                groups[sf] = nw.from_native(grouped.get_group(s))
-            else:
-                if pandas_2_2_0:
-                    groups[sf] = nw.from_native(grouped.get_group((s[0],)))
-                else:
-                    groups[sf] = nw.from_native(grouped.get_group(s[0]))
-    return groups, orders
-
-
 
 def get_groups_and_orders(args, grouper):
     """
@@ -2337,8 +2266,6 @@ def get_groups_and_orders(args, grouper):
     """
     orders = {} if "category_orders" not in args else args["category_orders"].copy()
     df: nw.DataFrame = args["data_frame"]
-    if nw.dependencies.is_pandas_dataframe(df.to_native()):
-        return _get_groups_and_orders_pandas(args, grouper)
     # figure out orders and what the single group name would be if there were one
     single_group_name = []
     unique_cache = dict()
