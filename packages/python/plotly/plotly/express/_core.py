@@ -1118,9 +1118,13 @@ def to_unindexed_series(x, name=None, native_namespace=None):
     no index (if pandas-like). Stripping the index from existing pd.Series is
     required to get things to match up right in the new DataFrame we're building.
     """
+    x_native = nw.to_native(x, strict=False)
+    if nw.dependencies.is_pandas_like_series(x_native):
+        import pandas as pd
+        return nw.from_native(pd.Series(x_native, name=name).reset_index(drop=True), series_only=True)
     x = nw.from_native(x, series_only=True, strict=False)
     if isinstance(x, nw.Series):
-        return nw.maybe_reset_index(x).rename(name)
+        return x.rename(name)
     else:
         if native_namespace is not None:
             return nw.new_series(name=name, values=x, native_namespace=native_namespace)
